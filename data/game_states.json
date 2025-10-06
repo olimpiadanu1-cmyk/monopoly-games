@@ -1,0 +1,69 @@
+{
+  "1": {
+    "position": 27,
+    "moves": 12,
+    "points": 460,
+    "completed": false,
+    "completedGames": {
+      "13": true
+    },
+    "userId": 1
+  },
+  "1759401944184": {
+    "position": 1,
+    "moves": 30,
+    "points": 0,
+    "completed": false,
+    "userId": 1759401944184
+  },
+  "1759388874536": {
+    "position": 1,
+    "moves": 30,
+    "points": 0,
+    "completed": false,
+    "userId": 1759388874536
+  },
+  "1759387759625": {
+    "position": 1,
+    "moves": 30,
+    "points": 0,
+    "completed": false,
+    "userId": 1759387759625
+  },
+  "1759386979655": {
+    "position": 1,
+    "moves": 30,
+    "points": 0,
+    "completed": false,
+    "userId": 1759386979655
+  },
+  "1759388873495": {
+    "position": 9,
+    "moves": 24,
+    "points": 140,
+    "completed": false,
+    "completedGames": {},
+    "userId": 1759388873495
+  },
+  "1759401939983": {
+    "position": 1,
+    "moves": 30,
+    "points": 0,
+    "completed": false,
+    "userId": 1759401939983
+  },
+  "1759387227810": {
+    "position": 1,
+    "moves": 30,
+    "points": 0,
+    "completed": false,
+    "userId": 1759387227810
+  },
+  "1759388876407": {
+    "position": 1,
+    "moves": 30,
+    "points": 0,
+    "completed": false,
+    "userId": 1759388876407
+  }
+}

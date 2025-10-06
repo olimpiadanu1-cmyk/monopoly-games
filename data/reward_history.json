@@ -1,0 +1,18 @@
+[
+  {
+    "id": 1759403492109,
+    "type": "points",
+    "nickname": "Fernando_Namikazze",
+    "amount": 100,
+    "timestamp": "2025-10-02T11:11:32.109Z",
+    "admin": "admin"
+  },
+  {
+    "id": 1759403483165,
+    "type": "moves",
+    "nickname": "Fernando_Namikazze",
+    "amount": 1,
+    "timestamp": "2025-10-02T11:11:23.165Z",
+    "admin": "admin"
+  }
+]

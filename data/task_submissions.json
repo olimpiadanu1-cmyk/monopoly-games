@@ -1,0 +1,32 @@
+[
+  {
+    "id": 1759402192785,
+    "userId": 1,
+    "userNick": "admin",
+    "userVK": "https://vk.com/admin",
+    "taskNumber": 20,
+    "taskDescription": "Задание для клетки 20. Здесь будет ваше задание...",
+    "screenshots": [
+      {
+        "id": 1759402179921.066,
+        "url": "blob:null/2df97a63-3c89-49eb-8b1a-92a83f886499",
+        "fileName": "без фона. логорейдж-fotor-20250930184810.png"
+      },
+      {
+        "id": 1759402184146.4536,
+        "url": "blob:null/f35f9891-2734-4e07-bc41-98b2ff71a949",
+        "fileName": "без фона. логорейдж-fotor-20250929171348.png"
+      },
+      {
+        "id": 1759402191071.362,
+        "url": "blob:null/1dee8165-6e07-4be0-9a86-15cfd6ca5c8e",
+        "fileName": "photo_2025-09-12_14-10-05.jpg"
+      }
+    ],
+    "status": "approved",
+    "submittedAt": "2025-10-02T10:49:52.785Z",
+    "reviewedAt": "2025-10-02T10:50:04.680Z",
+    "reviewedBy": "admin",
+    "reviewComment": null
+  }
+]
