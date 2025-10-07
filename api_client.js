@@ -1,7 +1,9 @@
 // API клиент для работы с сервером Monopoly Game
 class MonopolyAPI {
     constructor() {
-        this.baseURL = 'http://localhost:5000/api';
+        // Автоматически определяем URL в зависимости от окружения
+        const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+        this.baseURL = isLocalhost ? 'http://localhost:5000/api' : '/api';
         this.cache = new Map(); // Кеш для данных
         this.cacheTimeout = 5000; // 5 секунд кеш
     }
