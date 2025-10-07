@@ -109,6 +109,25 @@ function startLeaderboardAutoUpdate() {
     }, 5000); // Каждые 5 секунд
 }
 
+// Автообновление разделов админ-панели
+let adminAutoUpdateTimer = null;
+function startAdminAutoUpdate() {
+    if (adminAutoUpdateTimer) return; // уже запущено
+    adminAutoUpdateTimer = setInterval(async () => {
+        const adminPage = document.getElementById('admin-page');
+        if (adminPage && !adminPage.classList.contains('hidden')) {
+            try {
+                await loadApplications();
+                await loadUsers();
+                await loadPurchaseRequests();
+                await loadTaskReviews();
+            } catch (e) {
+                console.warn('Ошибка автообновления админ-панели:', e?.message || e);
+            }
+        }
+    }, 4000); // каждые 4 секунды
+}
+
 async function loadGameState() {
     if (!currentUser) return;
     
@@ -226,6 +245,7 @@ async function showAdminPanel() {
     document.querySelector('.admin-btn').classList.add('active');
     
     await loadAdminData();
+    startAdminAutoUpdate();
 }
 
 // Функции аутентификации
@@ -283,8 +303,10 @@ async function registerUser() {
         createdAt: new Date().toISOString()
     };
     
-    applications.push(application);
-    
+    // Загружаем текущие заявки с сервера (чтобы не затереть чужие)
+    const current = await monopolyAPI.loadData('applications') || [];
+    current.push(application);
+    applications = current;
     // Сохраняем данные на сервер
     await monopolyAPI.saveData('applications', applications);
     
@@ -1707,6 +1729,9 @@ async function loadUsers() {
 }
 
 async function approveApplication(appId) {
+    // Загружаем свежие заявки и пользователей чтобы не потерять изменения
+    applications = await monopolyAPI.loadData('applications') || [];
+    users = await monopolyAPI.loadData('users') || [];
     const app = applications.find(a => a.id === appId);
     if (!app) return;
     
@@ -1740,6 +1765,7 @@ async function approveApplication(appId) {
 }
 
 async function rejectApplication(appId) {
+    applications = await monopolyAPI.loadData('applications') || [];
     const app = applications.find(a => a.id === appId);
     if (!app) return;
     
@@ -1815,6 +1841,7 @@ async function loadShopItems() {
     
     const isAdmin = currentUser && currentUser.isAdmin;
     
+    shopItems.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
     shopItemsList.innerHTML = shopItems.map(item => `
         <div class="shop-item">
             <div class="item-info">
@@ -1865,7 +1892,10 @@ async function addShopItem() {
         createdAt: new Date().toISOString()
     };
     
-    shopItems.push(newItem);
+    // Загружаем актуальный список, чтобы не перетереть чужие изменения
+    const currentItems = await monopolyAPI.loadData('shop_items') || [];
+    currentItems.push(newItem);
+    shopItems = currentItems;
     
     // Сохраняем данные на сервер
     await monopolyAPI.saveData('shop_items', shopItems);
@@ -1877,7 +1907,7 @@ async function addShopItem() {
     document.getElementById('item-description').value = '';
     
     showNotification('Товар добавлен в магазин!', 'success');
-    loadShopItems();
+    await loadShopItems();
 }
 
 function editShopItem(itemId) {
