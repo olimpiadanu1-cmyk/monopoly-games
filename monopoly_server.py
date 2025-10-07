@@ -103,7 +103,11 @@ def get_data(data_type):
     try:
         data = load_data(data_type)
         if data is not None:
-            return jsonify({'success': True, 'data': data})
+            resp = jsonify({'success': True, 'data': data})
+            # Запрещаем кеширование на клиенте/прокси
+            resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+            resp.headers['Pragma'] = 'no-cache'
+            return resp
         else:
             return jsonify({'success': False, 'error': 'Неизвестный тип данных'}), 400
     except Exception as e:
@@ -136,7 +140,10 @@ def get_all_data():
         for data_type in DATA_FILES.keys():
             all_data[data_type] = load_data(data_type)
         
-        return jsonify({'success': True, 'data': all_data})
+        resp = jsonify({'success': True, 'data': all_data})
+        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
+        resp.headers['Pragma'] = 'no-cache'
+        return resp
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
