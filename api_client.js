@@ -1,11 +1,9 @@
 // API клиент для работы с сервером Monopoly Game
 class MonopolyAPI {
     constructor() {
-        // Автоопределение базового URL
-        const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-        this.baseURL = isLocalhost ? 'http://localhost:5000/api' : '/api';
-        this.cache = new Map();
-        this.cacheTimeout = 0; // отключаем кеш
+        this.baseURL = 'http://localhost:5000/api';
+        this.cache = new Map(); // Кеш для данных
+        this.cacheTimeout = 5000; // 5 секунд кеш
     }
 
     // Проверка статуса сервера
@@ -31,7 +29,7 @@ class MonopolyAPI {
                 return cached.data;
             }
 
-            const response = await fetch(`${this.baseURL}/data/${dataType}?ts=${Date.now()}`, { cache: 'no-store' });
+            const response = await fetch(`${this.baseURL}/data/${dataType}`);
             const result = await response.json();
             
             if (result.success) {
@@ -60,7 +58,6 @@ class MonopolyAPI {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Cache-Control': 'no-store'
                 },
                 body: JSON.stringify(data)
             });
@@ -89,7 +86,7 @@ class MonopolyAPI {
     // Загрузить все данные сразу
     async loadAllData() {
         try {
-            const response = await fetch(`${this.baseURL}/all-data?ts=${Date.now()}`, { cache: 'no-store' });
+            const response = await fetch(`${this.baseURL}/all-data`);
             const result = await response.json();
             
             if (result.success) {

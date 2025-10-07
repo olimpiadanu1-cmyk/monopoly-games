@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 
 from flask import Flask, request, jsonify, send_from_directory, send_file
-from werkzeug.utils import secure_filename
 from flask_cors import CORS
 import json
 import os
@@ -10,8 +9,8 @@ import os
 app = Flask(__name__)
 CORS(app)  # Разрешаем CORS для всех доменов
 
-# Папка для хранения данных (можно переопределить через переменную окружения DATA_DIR)
-DATA_DIR = os.environ.get('DATA_DIR', 'data')
+# Папка для хранения данных
+DATA_DIR = 'data'
 
 # Файлы для хранения данных
 DATA_FILES = {
@@ -26,11 +25,6 @@ DATA_FILES = {
     'shop_items': 'shop_items.json',
     'shopping_carts': 'shopping_carts.json'
 }
-
-# Папка для загрузок скриншотов
-UPLOADS_DIR = os.path.join('.', 'uploads')
-TASK_SCREENSHOTS_DIR = os.path.join(UPLOADS_DIR, 'task_submissions')
-os.makedirs(TASK_SCREENSHOTS_DIR, exist_ok=True)
 
 def load_data(data_type):
     """Загрузить данные из JSON файла"""
@@ -56,35 +50,6 @@ def save_data(data_type, data):
     """Сохранить данные в JSON файл"""
     if data_type not in DATA_FILES:
         return False
-
-# Загрузка скриншотов заданий
-@app.route('/api/upload-screenshots', methods=['POST'])
-def upload_screenshots():
-    try:
-        # Идентификатор отправки, чтобы группировать файлы
-        submission_id = request.form.get('submissionId') or str(int(os.path.getmtime(__file__)))
-        target_dir = os.path.join(TASK_SCREENSHOTS_DIR, submission_id)
-        os.makedirs(target_dir, exist_ok=True)
-
-        files = request.files.getlist('files')
-        saved = []
-        for f in files:
-            if not f:
-                continue
-            filename = secure_filename(f.filename)
-            # Добавляем уникальный префикс чтобы избежать коллизий
-            unique_name = f"{int(os.path.getmtime(__file__))}_{filename}"
-            save_path = os.path.join(target_dir, unique_name)
-            f.save(save_path)
-            public_url = f"/uploads/task_submissions/{submission_id}/{unique_name}"
-            saved.append({
-                'url': public_url,
-                'fileName': filename
-            })
-
-        return jsonify({'success': True, 'files': saved})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
         
     file_path = os.path.join(DATA_DIR, DATA_FILES[data_type])
     try:
@@ -103,11 +68,7 @@ def get_data(data_type):
     try:
         data = load_data(data_type)
         if data is not None:
-            resp = jsonify({'success': True, 'data': data})
-            # Запрещаем кеширование на клиенте/прокси
-            resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-            resp.headers['Pragma'] = 'no-cache'
-            return resp
+            return jsonify({'success': True, 'data': data})
         else:
             return jsonify({'success': False, 'error': 'Неизвестный тип данных'}), 400
     except Exception as e:
@@ -140,10 +101,7 @@ def get_all_data():
         for data_type in DATA_FILES.keys():
             all_data[data_type] = load_data(data_type)
         
-        resp = jsonify({'success': True, 'data': all_data})
-        resp.headers['Cache-Control'] = 'no-store, no-cache, must-revalidate, max-age=0'
-        resp.headers['Pragma'] = 'no-cache'
-        return resp
+        return jsonify({'success': True, 'data': all_data})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -170,13 +128,6 @@ def serve_static(filename):
     if filename.startswith('api/'):
         return jsonify({'error': 'API route not found'}), 404
     
-    # Отдача загруженных скриншотов
-    if filename.startswith('uploads/'):
-        try:
-            return send_from_directory('.', filename)
-        except Exception as e:
-            return f"Error loading {filename}: {e}", 404
-
     # Обслуживаем статические файлы
     if filename.endswith(('.css', '.js', '.ico', '.png', '.jpg', '.jpeg', '.gif', '.svg')):
         try:

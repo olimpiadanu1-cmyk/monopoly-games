@@ -109,25 +109,6 @@ function startLeaderboardAutoUpdate() {
     }, 5000); // Каждые 5 секунд
 }
 
-// Автообновление разделов админ-панели
-let adminAutoUpdateTimer = null;
-function startAdminAutoUpdate() {
-    if (adminAutoUpdateTimer) return; // уже запущено
-    adminAutoUpdateTimer = setInterval(async () => {
-        const adminPage = document.getElementById('admin-page');
-        if (adminPage && !adminPage.classList.contains('hidden')) {
-            try {
-                await loadApplications();
-                await loadUsers();
-                await loadPurchaseRequests();
-                await loadTaskReviews();
-            } catch (e) {
-                console.warn('Ошибка автообновления админ-панели:', e?.message || e);
-            }
-        }
-    }, 4000); // каждые 4 секунды
-}
-
 async function loadGameState() {
     if (!currentUser) return;
     
@@ -141,9 +122,7 @@ async function loadGameState() {
             
             currentPosition = gameState.position || 1;
             movesLeft = gameState.moves || 30;
-            // Фикс: если в game_state нет points, берем из профиля пользователя
-            const fallbackPoints = (currentUser && typeof currentUser.points === 'number') ? currentUser.points : 0;
-            playerPoints = (typeof gameState.points === 'number') ? gameState.points : fallbackPoints;
+            playerPoints = gameState.points || 0;
             gameCompleted = gameState.completed || false;
             completedGames = gameState.completedGames || {};
             
@@ -245,7 +224,6 @@ async function showAdminPanel() {
     document.querySelector('.admin-btn').classList.add('active');
     
     await loadAdminData();
-    startAdminAutoUpdate();
 }
 
 // Функции аутентификации
@@ -303,10 +281,8 @@ async function registerUser() {
         createdAt: new Date().toISOString()
     };
     
-    // Загружаем текущие заявки с сервера (чтобы не затереть чужие)
-    const current = await monopolyAPI.loadData('applications') || [];
-    current.push(application);
-    applications = current;
+    applications.push(application);
+    
     // Сохраняем данные на сервер
     await monopolyAPI.saveData('applications', applications);
     
@@ -660,22 +636,6 @@ async function saveUserPoints() {
             
             // Сохраняем пользователей на сервер
             await monopolyAPI.saveData('users', users);
-            
-            // Обновляем очки в состояниях игр на сервере
-            const gameStates = await monopolyAPI.loadData('game_states') || {};
-            if (!gameStates[currentUser.id]) {
-                gameStates[currentUser.id] = {
-                    position: currentPosition,
-                    moves: movesLeft,
-                    points: playerPoints,
-                    completed: gameCompleted,
-                    completedGames: completedGames,
-                    userId: currentUser.id
-                };
-            } else {
-                gameStates[currentUser.id].points = playerPoints;
-            }
-            await monopolyAPI.saveData('game_states', gameStates);
             
             // Обновляем текущего пользователя в localStorage (только для авторизации)
             localStorage.setItem('monopoly_current_user', JSON.stringify(currentUser));
@@ -1480,26 +1440,6 @@ function updateSubmitButton() {
     }
 }
 
-// Вспомогательная: загрузка скриншотов на сервер
-async function uploadTaskScreenshots(submissionId, files) {
-    try {
-        const formData = new FormData();
-        formData.append('submissionId', String(submissionId));
-        files.forEach(f => formData.append('files', f));
-        const res = await fetch('/api/upload-screenshots', {
-            method: 'POST',
-            body: formData
-        });
-        const json = await res.json();
-        if (!json.success) throw new Error(json.error || 'Upload failed');
-        return json.files || [];
-    } catch (e) {
-        console.error('Ошибка загрузки скриншотов:', e);
-        showNotification('Не удалось загрузить скриншоты. Попробуйте снова.', 'error');
-        return [];
-    }
-}
-
 // Функция отправки задания на проверку
 async function submitTaskForReview() {
     if (!currentUser) {
@@ -1512,20 +1452,19 @@ async function submitTaskForReview() {
         return;
     }
     
-    const submissionId = Date.now();
-
-    // Загружаем скриншоты на сервер и получаем постоянные URL
-    const uploadedFiles = await uploadTaskScreenshots(submissionId, currentTaskScreenshots.map(s => s.file));
-
     // Создаем объект задания для проверки
     const taskSubmission = {
-        id: submissionId,
+        id: Date.now(),
         userId: currentUser.id,
         userNick: currentUser.nick,
         userVK: currentUser.vk || 'Не указан',
         taskNumber: currentPosition,
         taskDescription: document.getElementById('task-description').textContent,
-        screenshots: uploadedFiles.map((f, idx) => ({ id: `${submissionId}_${idx}`, url: f.url, fileName: f.fileName })),
+        screenshots: currentTaskScreenshots.map(s => ({
+            id: s.id,
+            url: s.url,
+            fileName: s.file.name
+        })),
         status: 'pending', // pending, approved, rejected
         submittedAt: new Date().toISOString(),
         reviewedAt: null,
@@ -1729,9 +1668,6 @@ async function loadUsers() {
 }
 
 async function approveApplication(appId) {
-    // Загружаем свежие заявки и пользователей чтобы не потерять изменения
-    applications = await monopolyAPI.loadData('applications') || [];
-    users = await monopolyAPI.loadData('users') || [];
     const app = applications.find(a => a.id === appId);
     if (!app) return;
     
@@ -1765,7 +1701,6 @@ async function approveApplication(appId) {
 }
 
 async function rejectApplication(appId) {
-    applications = await monopolyAPI.loadData('applications') || [];
     const app = applications.find(a => a.id === appId);
     if (!app) return;
     
@@ -1841,7 +1776,6 @@ async function loadShopItems() {
     
     const isAdmin = currentUser && currentUser.isAdmin;
     
-    shopItems.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
     shopItemsList.innerHTML = shopItems.map(item => `
         <div class="shop-item">
             <div class="item-info">
@@ -1892,10 +1826,7 @@ async function addShopItem() {
         createdAt: new Date().toISOString()
     };
     
-    // Загружаем актуальный список, чтобы не перетереть чужие изменения
-    const currentItems = await monopolyAPI.loadData('shop_items') || [];
-    currentItems.push(newItem);
-    shopItems = currentItems;
+    shopItems.push(newItem);
     
     // Сохраняем данные на сервер
     await monopolyAPI.saveData('shop_items', shopItems);
@@ -1907,7 +1838,7 @@ async function addShopItem() {
     document.getElementById('item-description').value = '';
     
     showNotification('Товар добавлен в магазин!', 'success');
-    await loadShopItems();
+    loadShopItems();
 }
 
 function editShopItem(itemId) {
@@ -2067,7 +1998,7 @@ async function confirmPurchase() {
     // Списываем очки сразу (они вернутся при отклонении)
     playerPoints -= currentPurchaseItem.price;
     updatePointsDisplay();
-    await saveUserPoints();
+    saveUserPoints();
     
     // Сохраняем заявку
     purchaseRequests.push(purchaseRequest);
@@ -4764,12 +4695,10 @@ async function loadPurchaseRequests() {
     if (!purchaseRequestsList) return;
     
     if (pendingRequests.length === 0) {
-        purchaseRequestsList.innerHTML = '<div class="no-data">Нет заявок, ожидающих одобрения</div>';
+        purchaseRequestsList.innerHTML = '<div class="no-data">Нет заявок на товары</div>';
         return;
     }
     
-    // Сортируем новые сверху
-    pendingRequests.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
     purchaseRequestsList.innerHTML = pendingRequests.map(request => `
         <div class="purchase-request-item">
             <div class="purchase-request-header">
@@ -4792,53 +4721,108 @@ async function loadPurchaseRequests() {
 }
 
 async function approvePurchaseRequest(requestId) {
-    // Загружаем актуальные заявки
-    purchaseRequests = await monopolyAPI.loadData('purchase_requests') || [];
     const request = purchaseRequests.find(req => req.id === requestId);
     if (!request) return;
-    if (request.status !== PURCHASE_STATUS.PENDING) return;
     
     request.status = PURCHASE_STATUS.APPROVED;
     request.approvedAt = new Date().toISOString();
-    // Сохраняем заявки на сервере
-    await monopolyAPI.saveData('purchase_requests', purchaseRequests);
+    localStorage.setItem('monopoly_purchase_requests', JSON.stringify(purchaseRequests));
+    
+    // Сохраняем на сервер
+    
+    
+    // Обновляем статус в корзине пользователя
+    const userCartKey = `monopoly_shopping_cart_${request.userId}`;
+    let userCart = JSON.parse(localStorage.getItem(userCartKey) || '[]');
+    const cartItem = userCart.find(item => item.id === requestId);
+    if (cartItem) {
+        cartItem.status = PURCHASE_STATUS.APPROVED;
+        cartItem.approvedAt = request.approvedAt;
+        localStorage.setItem(userCartKey, JSON.stringify(userCart));
+        
+        // Сохраняем обновленные корзины на сервер
+        const allShoppingCarts = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('monopoly_shopping_cart_')) {
+                const userId = key.replace('monopoly_shopping_cart_', '');
+                const cartData = JSON.parse(localStorage.getItem(key) || '[]');
+                if (cartData.length > 0) {
+                    allShoppingCarts[userId] = cartData;
+                }
+            }
+        }
+        
+    }
     
     showNotification(`Заявка на "${request.itemName}" для игрока ${request.userName} одобрена!`, 'success');
-    await loadPurchaseRequests();
-    // Обновляем корзину, если открыта
-    try { await updateCartCount(); loadCartItems(); } catch (_) {}
+    loadPurchaseRequests();
+    
+    // Если текущий пользователь - тот, чья заявка была одобрена, обновляем его корзину
+    if (currentUser && currentUser.id === request.userId) {
+        await updateCartCount();
+    }
 }
 
 async function rejectPurchaseRequest(requestId) {
-    // Загружаем актуальные заявки
-    purchaseRequests = await monopolyAPI.loadData('purchase_requests') || [];
     const request = purchaseRequests.find(req => req.id === requestId);
     if (!request) return;
-    if (request.status !== PURCHASE_STATUS.PENDING) return;
     
     request.status = PURCHASE_STATUS.REJECTED;
     request.rejectedAt = new Date().toISOString();
     
-    // Возврат очков пользователю (users + game_states)
-    let usersList = await monopolyAPI.loadData('users') || [];
-    const u = usersList.find(u => u.id === request.userId);
-    if (u) {
-        u.points = (u.points || 0) + (request.itemPrice || 0);
-        await monopolyAPI.saveData('users', usersList);
+    // Возвращаем очки игроку
+    const user = users.find(u => u.id === request.userId);
+    if (user) {
+        user.points = (user.points || 0) + request.itemPrice;
+        localStorage.setItem('monopoly_users', JSON.stringify(users));
+        
+        // Если это текущий пользователь, обновляем его очки
+        if (currentUser && currentUser.id === user.id) {
+            playerPoints = user.points;
+            currentUser.points = user.points;
+            updatePointsDisplay();
+            localStorage.setItem('monopoly_current_user', JSON.stringify(currentUser));
+        }
     }
-    const gameStates = await monopolyAPI.loadData('game_states') || {};
-    if (!gameStates[request.userId]) {
-        gameStates[request.userId] = { position: 1, moves: 30, points: 0, completed: false, completedGames: {}, userId: request.userId };
-    }
-    gameStates[request.userId].points = (gameStates[request.userId].points || 0) + (request.itemPrice || 0);
-    await monopolyAPI.saveData('game_states', gameStates);
     
-    // Сохраняем заявки на сервере
-    await monopolyAPI.saveData('purchase_requests', purchaseRequests);
+    localStorage.setItem('monopoly_purchase_requests', JSON.stringify(purchaseRequests));
+    
+    // Сохраняем на сервер
+    
+    
+    
+    // Обновляем статус в корзине пользователя
+    const userCartKey = `monopoly_shopping_cart_${request.userId}`;
+    let userCart = JSON.parse(localStorage.getItem(userCartKey) || '[]');
+    const cartItem = userCart.find(item => item.id === requestId);
+    if (cartItem) {
+        cartItem.status = PURCHASE_STATUS.REJECTED;
+        cartItem.rejectedAt = request.rejectedAt;
+        localStorage.setItem(userCartKey, JSON.stringify(userCart));
+        
+        // Сохраняем обновленные корзины на сервер
+        const allShoppingCarts = {};
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith('monopoly_shopping_cart_')) {
+                const userId = key.replace('monopoly_shopping_cart_', '');
+                const cartData = JSON.parse(localStorage.getItem(key) || '[]');
+                if (cartData.length > 0) {
+                    allShoppingCarts[userId] = cartData;
+                }
+            }
+        }
+        
+    }
     
     showNotification(`Заявка на "${request.itemName}" для игрока ${request.userName} отклонена. Очки возвращены.`, 'warning');
-    await loadPurchaseRequests();
-    try { await updateCartCount(); loadCartItems(); } catch (_) {}
+    loadPurchaseRequests();
+    
+    // Если текущий пользователь - тот, чья заявка была отклонена, обновляем его корзину
+    if (currentUser && currentUser.id === request.userId) {
+        await updateCartCount();
+    }
 }
 
 // Функции редактора заданий
@@ -4857,15 +4841,10 @@ function getDefaultTasks() {
     return defaultTasks;
 }
 
-async function initializeTasks() {
+function initializeTasks() {
     if (Object.keys(cellTasks).length === 0) {
         cellTasks = getDefaultTasks();
-        // Сохраняем на сервер
-        try {
-            await monopolyAPI.saveData('cell_tasks', cellTasks);
-        } catch (e) {
-            console.warn('Не удалось сохранить дефолтные задания на сервер:', e);
-        }
+        localStorage.setItem('monopoly_cell_tasks', JSON.stringify(cellTasks));
     }
 }
 
@@ -4942,12 +4921,10 @@ async function saveAllTasks() {
     }
     
     cellTasks = updatedTasks;
+    localStorage.setItem('monopoly_cell_tasks', JSON.stringify(cellTasks));
+    
     // Сохраняем на сервер
-    try {
-        await monopolyAPI.saveData('cell_tasks', cellTasks);
-    } catch (e) {
-        console.error('Ошибка сохранения заданий на сервер:', e);
-    }
+    
     
     showNotification('Все задания успешно сохранены!', 'success');
     
@@ -4955,14 +4932,10 @@ async function saveAllTasks() {
     updateTaskModal();
 }
 
-async function resetAllTasks() {
+function resetAllTasks() {
     if (confirm('Вы уверены, что хотите сбросить все задания к значениям по умолчанию? Это действие нельзя отменить.')) {
         cellTasks = getDefaultTasks();
-        try {
-            await monopolyAPI.saveData('cell_tasks', cellTasks);
-        } catch (e) {
-            console.error('Ошибка сохранения дефолтных заданий на сервер:', e);
-        }
+        localStorage.setItem('monopoly_cell_tasks', JSON.stringify(cellTasks));
         
         loadTasksInEditor();
         showNotification('Все задания сброшены к значениям по умолчанию', 'info');
